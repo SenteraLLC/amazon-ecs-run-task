@@ -13,7 +13,7 @@ const mockEcsRegisterTaskDef = jest.fn();
 const mockEcsDescribeTasks = jest.fn();
 const mockRunTasks = jest.fn();
 const mockEcsWaiter = jest.fn();
-jest.mock('aws-sdk', () => {
+jest.mock('@aws-sdk/client-ecs', () => {
   return {
     config: {
       region: 'fake-region',
