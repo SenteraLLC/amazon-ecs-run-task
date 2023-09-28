@@ -185,7 +185,7 @@ async function waitForTasksStopped(ecs, clusterName, taskArns, waitForMinutes) {
   });
 
   core.debug(`Run task response ${JSON.stringify(waitTaskResponse)}`)
-  core.info(`All tasks have stopped. Watch progress in the Amazon ECS console: https://console.aws.amazon.com/ecs/home?region=us-east-1#/clusters/${clusterName}/tasks`); // TODO: pull region from config?
+  core.info(`All tasks have stopped. Watch progress in the Amazon ECS console: https://console.aws.amazon.com/ecs/home?region=${process.env.AWS_REGION}#/clusters/${clusterName}/tasks`);
 }
 
 async function tasksExitCode(ecs, clusterName, taskArns) {
