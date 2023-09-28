@@ -140,7 +140,7 @@ async function run() {
       cluster: clusterName,
       launchType: launchType,
       taskDefinition: taskDefArn,
-      count: count,
+      count: parseInt(count),
       startedBy: startedBy
     }
 
