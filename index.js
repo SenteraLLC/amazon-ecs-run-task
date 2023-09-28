@@ -171,11 +171,12 @@ async function waitForTasksStopped(ecs, clusterName, taskArns, waitForMinutes) {
     waitForMinutes = MAX_WAIT_MINUTES;
   }
 
-  core.debug('Waiting for tasks to stop');
+  const waitTimeSeconds = waitForMinutes * 60;
+  core.debug('Waiting for tasks to stop. Max wait time: ' + waitTimeSeconds);
 
   const waitTaskResponse = await waitUntilTasksStopped({
     client: ecs,
-    maxWaitTime: waitForMinutes * 60
+    maxWaitTime: waitTimeSeconds
   }, {
     cluster: clusterName,
     tasks: taskArns
