@@ -22,7 +22,6 @@ const IGNORED_TASK_DEFINITION_ATTRIBUTES = [
   'registeredBy'
 ];
 
-const WAIT_DEFAULT_DELAY_SEC = 5;
 const MAX_WAIT_MINUTES = 360;
 
 function isEmptyValue(value) {
@@ -178,13 +177,12 @@ async function waitForTasksStopped(ecs, clusterName, taskArns, waitForMinutes) {
     waitForMinutes = MAX_WAIT_MINUTES;
   }
 
-  const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
-
-  core.debug('Waiting for tasks to stop');
+  const waitTimeSeconds = waitForMinutes * 60;
+  core.debug('Waiting for tasks to stop. Max wait time: ' + waitTimeSeconds);
 
   const waitTaskResponse = await waitUntilTasksStopped({
     client: ecs,
-    maxWaitTime: 200
+    maxWaitTime: waitTimeSeconds
   }, {
     cluster: clusterName,
     tasks: taskArns
