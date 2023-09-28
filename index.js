@@ -1,6 +1,6 @@
 const path = require('path');
 const core = require('@actions/core');
-const aws = require('@aws-sdk/client-ecs');
+const aws = require('aws-sdk');
 const yaml = require('yaml');
 const fs = require('fs');
 
