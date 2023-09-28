@@ -15,14 +15,12 @@ const mockRunTasks = jest.fn();
 const mockEcsWaiter = jest.fn();
 jest.mock('@aws-sdk/client-ecs', () => {
   return {
-    config: {
-      region: 'fake-region',
-    },
+    waitUntilTasksStopped: () => { return mockEcsWaiter() },
     ECS: jest.fn(() => ({
+      runTask: mockRunTasks,
       registerTaskDefinition: mockEcsRegisterTaskDef,
       describeTasks: mockEcsDescribeTasks,
-      runTask: mockRunTasks,
-      waitFor: mockEcsWaiter,
+      // waitFor: mockEcsWaiter,
     })),
   };
 });
@@ -57,76 +55,57 @@ describe('Deploy to ECS', () => {
       throw new Error(`Unknown path ${pathInput}`);
     });
 
-    //runTask
-    //describeTask
-
     mockEcsRegisterTaskDef.mockImplementation(() => {
-      return {
-        promise() {
-          return Promise.resolve({
-            taskDefinition: { taskDefinitionArn: 'task:def:arn' },
-          });
-        },
-      };
+      return Promise.resolve({
+        taskDefinition: { taskDefinitionArn: 'task:def:arn' },
+      });
     });
 
     mockEcsDescribeTasks.mockImplementation(() => {
-      return {
-        promise() {
-          return Promise.resolve({
-            failures: [],
-            tasks: [
+      return Promise.resolve({
+        failures: [],
+        tasks: [
+          {
+            containers: [
               {
-                containers: [
-                  {
-                    lastStatus: 'RUNNING',
-                    exitCode: 0,
-                    reason: '',
-                    taskArn: 'arn:aws:ecs:fake-region:account_id:task/arn',
-                  },
-                ],
-                desiredStatus: 'RUNNING',
                 lastStatus: 'RUNNING',
+                exitCode: 0,
+                reason: '',
                 taskArn: 'arn:aws:ecs:fake-region:account_id:task/arn',
               },
             ],
-          });
-        },
-      };
+            desiredStatus: 'RUNNING',
+            lastStatus: 'RUNNING',
+            taskArn: 'arn:aws:ecs:fake-region:account_id:task/arn',
+          },
+        ],
+      });
     });
 
     mockRunTasks.mockImplementation(() => {
-      return {
-        promise() {
-          return Promise.resolve({
-            failures: [],
-            tasks: [
+      return Promise.resolve({
+        failures: [],
+        tasks: [
+          {
+            containers: [
               {
-                containers: [
-                  {
-                    lastStatus: 'RUNNING',
-                    exitCode: 0,
-                    reason: '',
-                    taskArn: 'arn:aws:ecs:fake-region:account_id:task/arn',
-                  },
-                ],
-                desiredStatus: 'RUNNING',
                 lastStatus: 'RUNNING',
+                exitCode: 0,
+                reason: '',
                 taskArn: 'arn:aws:ecs:fake-region:account_id:task/arn',
-                // taskDefinitionArn: 'arn:aws:ecs:<region>:<aws_account_id>:task-definition/amazon-ecs-sample:1'
               },
             ],
-          });
-        },
-      };
+            desiredStatus: 'RUNNING',
+            lastStatus: 'RUNNING',
+            taskArn: 'arn:aws:ecs:fake-region:account_id:task/arn',
+            // taskDefinitionArn: 'arn:aws:ecs:<region>:<aws_account_id>:task-definition/amazon-ecs-sample:1'
+          },
+        ],
+      });
     });
 
     mockEcsWaiter.mockImplementation(() => {
-      return {
-        promise() {
-          return Promise.resolve({});
-        },
-      };
+      return Promise.resolve({});
     });
   });
 
@@ -145,7 +124,7 @@ describe('Deploy to ECS', () => {
       cluster: 'cluster-789',
       launchType: 'EC2',
       taskDefinition: 'task:def:arn',
-      count: '1',
+      count: 1,
       startedBy: 'amazon-ecs-run-task-for-github-actions',
     });
     expect(mockEcsWaiter).toHaveBeenCalledTimes(0);
