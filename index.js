@@ -1,8 +1,8 @@
-const path = require("path");
-const core = require("@actions/core");
-const aws = require("aws-sdk");
-const yaml = require("yaml");
-const fs = require("fs");
+const path = require('path');
+const core = require('@actions/core');
+const { ECS, waitUntilTasksStopped } = require('@aws-sdk/client-ecs');
+const yaml = require('yaml');
+const fs = require('fs');
 
 // Attributes that are returned by DescribeTaskDefinition, but are not valid RegisterTaskDefinition inputs
 const IGNORED_TASK_DEFINITION_ATTRIBUTES = [
@@ -16,11 +16,10 @@ const IGNORED_TASK_DEFINITION_ATTRIBUTES = [
   'registeredBy'
 ];
 
-const WAIT_DEFAULT_DELAY_SEC = 5;
 const MAX_WAIT_MINUTES = 360;
 
 function isEmptyValue(value) {
-  if (value === null || value === undefined || value === "") {
+  if (value === null || value === undefined || value === '') {
     return true;
   }
 
@@ -35,7 +34,7 @@ function isEmptyValue(value) {
     return true;
   }
 
-  if (typeof value === "object") {
+  if (typeof value === 'object') {
     for (var childValue of Object.values(value)) {
       if (!isEmptyValue(childValue)) {
         // the object has at least one non-empty property
@@ -70,9 +69,9 @@ function removeIgnoredAttributes(taskDef) {
     if (taskDef[attribute]) {
       core.warning(
         `Ignoring property '${attribute}' in the task definition file. ` +
-          "This property is returned by the Amazon ECS DescribeTaskDefinition API and may be shown in the ECS console, " +
-          "but it is not a valid field when registering a new task definition. " +
-          "This field can be safely removed from your task definition file."
+          'This property is returned by the Amazon ECS DescribeTaskDefinition API and may be shown in the ECS console, ' +
+          'but it is not a valid field when registering a new task definition. ' +
+          'This field can be safely removed from your task definition file.'
       );
       delete taskDef[attribute];
     }
@@ -83,9 +82,9 @@ function removeIgnoredAttributes(taskDef) {
 
 async function run() {
   try {
-    const agent = "amazon-ecs-run-task-for-github-actions";
+    const agent = 'amazon-ecs-run-task-for-github-actions';
 
-    const ecs = new aws.ECS({
+    const ecs = new ECS({
       customUserAgent: agent,
     });
 
@@ -93,7 +92,7 @@ async function run() {
     const taskDefinitionFile = core.getInput('task-definition', { required: true });
     const cluster = core.getInput('cluster', { required: false });
     const count = core.getInput('count', { required: true });
-    const launchType = core.getInput('launch-type', { required: false }) || "EC2";
+    const launchType = core.getInput('launch-type', { required: false }) || 'EC2';
     const networkConfig = core.getInput('network-configuration', { required: false }) || null;
     const startedBy = core.getInput('started-by', { required: false }) || agent;
     const waitForFinish = core.getInput('wait-for-finish', { required: false }) || false;
@@ -104,11 +103,11 @@ async function run() {
     }
 
     // Register the task definition
-    core.debug("Registering the task definition");
+    core.debug('Registering the task definition');
     const taskDefPath = path.isAbsolute(taskDefinitionFile)
       ? taskDefinitionFile
       : path.join(process.env.GITHUB_WORKSPACE, taskDefinitionFile);
-    const fileContents = fs.readFileSync(taskDefPath, "utf8");
+    const fileContents = fs.readFileSync(taskDefPath, 'utf8');
     const taskDefContents = removeIgnoredAttributes(
       cleanNullKeys(yaml.parse(fileContents))
     );
@@ -116,13 +115,12 @@ async function run() {
     let registerResponse;
     try {
       registerResponse = await ecs
-        .registerTaskDefinition(taskDefContents)
-        .promise();
+        .registerTaskDefinition(taskDefContents);
     } catch (error) {
       core.setFailed(
-        "Failed to register task definition in ECS: " + error.message
+        'Failed to register task definition in ECS: ' + error.message
       );
-      core.debug("Task definition contents:");
+      core.debug('Task definition contents:');
       core.debug(JSON.stringify(taskDefContents, undefined, 4));
       throw error;
     }
@@ -135,7 +133,7 @@ async function run() {
       cluster: clusterName,
       launchType: launchType,
       taskDefinition: taskDefArn,
-      count: count,
+      count: parseInt(count),
       startedBy: startedBy
     }
 
@@ -145,7 +143,7 @@ async function run() {
 
     core.debug(`Running task with ${JSON.stringify(clusterParams)}`)
 
-    const runTaskResponse = await ecs.runTask(clusterParams).promise();
+    const runTaskResponse = await ecs.runTask(clusterParams);
 
     core.debug(`Run task response ${JSON.stringify(runTaskResponse)}`)
 
@@ -156,9 +154,9 @@ async function run() {
 
     const taskArns = runTaskResponse.tasks.map((task) => task.taskArn);
 
-    core.setOutput("task-arn", taskArns);
+    core.setOutput('task-arn', taskArns);
 
-    if (waitForFinish && waitForFinish.toLowerCase() === "true") {
+    if (waitForFinish && waitForFinish.toLowerCase() === 'true') {
       await waitForTasksStopped(ecs, clusterName, taskArns, waitForMinutes);
       await tasksExitCode(ecs, clusterName, taskArns);
     }
@@ -173,21 +171,19 @@ async function waitForTasksStopped(ecs, clusterName, taskArns, waitForMinutes) {
     waitForMinutes = MAX_WAIT_MINUTES;
   }
 
-  const maxAttempts = (waitForMinutes * 60) / WAIT_DEFAULT_DELAY_SEC;
+  const waitTimeSeconds = waitForMinutes * 60;
+  core.debug('Waiting for tasks to stop. Max wait time: ' + waitTimeSeconds);
 
-  core.debug('Waiting for tasks to stop');
-
-  const waitTaskResponse = await ecs.waitFor('tasksStopped', {
+  const waitTaskResponse = await waitUntilTasksStopped({
+    client: ecs,
+    maxWaitTime: waitTimeSeconds
+  }, {
     cluster: clusterName,
-    tasks: taskArns,
-    $waiter: {
-      delay: WAIT_DEFAULT_DELAY_SEC,
-      maxAttempts: maxAttempts
-    }
-  }).promise();
+    tasks: taskArns
+  });
 
   core.debug(`Run task response ${JSON.stringify(waitTaskResponse)}`)
-  core.info(`All tasks have stopped. Watch progress in the Amazon ECS console: https://console.aws.amazon.com/ecs/home?region=${aws.config.region}#/clusters/${clusterName}/tasks`);
+  core.info(`All tasks have stopped. Watch progress in the Amazon ECS console: https://console.aws.amazon.com/ecs/home?region=${process.env.AWS_REGION}#/clusters/${clusterName}/tasks`);
 }
 
 async function tasksExitCode(ecs, clusterName, taskArns) {
@@ -195,8 +191,7 @@ async function tasksExitCode(ecs, clusterName, taskArns) {
     .describeTasks({
       cluster: clusterName,
       tasks: taskArns,
-    })
-    .promise();
+    });
 
   const containers = [].concat(
     ...describeResponse.tasks.map((task) => task.containers)
@@ -217,7 +212,7 @@ async function tasksExitCode(ecs, clusterName, taskArns) {
   );
 
   if (failures.length > 0) {
-    core.setFailed(failures.join("\n"));
+    core.setFailed(failures.join('\n'));
   } else {
     core.info(`All tasks have exited successfully.`);
   }
